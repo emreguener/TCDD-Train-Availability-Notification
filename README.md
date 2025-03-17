@@ -67,7 +67,6 @@ GET /api/trains/search?gidisTarih=2025-03-18T10:00:00&gidisTarihSon=2025-03-20T1
 
 This request will fetch available train schedules for the specified parameters and send an email if available seats are greater than zero.
 
-![Swagger UI Request Example](./swagger_ui_example.png)
 
 ---
 
