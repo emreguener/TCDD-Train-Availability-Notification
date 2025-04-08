@@ -1,10 +1,10 @@
 package com.emreguener.TCDD_Ticket.service;
 
-import com.emreguener.TCDD_Ticket.dto.RequestDTO;
-import com.emreguener.TCDD_Ticket.dto.ResponseDTO;
-import com.emreguener.TCDD_Ticket.dto.ResponseDTO.Train;
-import com.emreguener.TCDD_Ticket.dto.ResponseDTO.TrainSegment;
-import com.emreguener.TCDD_Ticket.dto.SeferDTO;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -14,12 +14,10 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.stream.Collectors;
+import com.emreguener.TCDD_Ticket.dto.RequestDTO;
+import com.emreguener.TCDD_Ticket.dto.ResponseDTO;
+import com.emreguener.TCDD_Ticket.dto.ResponseDTO.Train;
+import com.emreguener.TCDD_Ticket.dto.SeferDTO;
 
 @Service
 public class TicketService {
@@ -36,79 +34,90 @@ public class TicketService {
     }
 
     public Page<SeferDTO> getTrain(LocalDateTime gidisTarih, LocalDateTime gidisTarihSon,
-                               String binisIstasyonu, String inisIstasyonu,
-                               int binisIstasyonId, int inisIstasyonId,
-                               String koltukTipi, String email, int page, int size) {
+                                    String binisIstasyonu, String inisIstasyonu,
+                                    int binisIstasyonId, int inisIstasyonId,
+                                    String koltukTipi, String email, int page, int size) {
 
-        // API'ye istek için RequestDTO nesnesi oluştur
-        RequestDTO requestDTO = new RequestDTO();
-        requestDTO.setSearchRoutes(List.of(new RequestDTO.SearchRoutes(
+        List<Train> filteredTrains = collectTrainsForDateRange(
                 binisIstasyonId, binisIstasyonu,
                 inisIstasyonId, inisIstasyonu,
-                gidisTarih
-        )));
-        requestDTO.setSearchType("DOMESTIC");
-        requestDTO.setSearchReservation(false);
-        requestDTO.setPassengerTypeCounts(List.of(new RequestDTO.PassengerTypeCount(0, 1)));
-
-        // API'den gelen yanıt
-        ResponseDTO response = restClient.post()
-                .uri(API_URL)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + BEARER_TOKEN)
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                .header("Unit-Id", "3895")
-                .body(requestDTO)
-                .retrieve()
-                .body(ResponseDTO.class);
-
-        Set<Train> filteredTrains = new HashSet<>();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-
-        response.getTrainLegs().forEach(trainLeg ->
-                trainLeg.getTrainAvailabilities().forEach(trainAvailability ->
-                        trainAvailability.getTrains().forEach(train -> {
-                            for (TrainSegment segment : train.getTrainSegments()) {
-                                LocalDateTime departureTime = LocalDateTime.parse(segment.getDepartureTime(), formatter);
-                                if (departureTime.isAfter(gidisTarih) && departureTime.isBefore(gidisTarihSon)) {
-                                    train.getAvailableFareInfo().forEach(fareInfo ->
-                                            fareInfo.getCabinClasses().forEach(cabinClass -> {
-                                                if (cabinClass.getCabinClass().getName().equalsIgnoreCase(koltukTipi) &&
-                                                        cabinClass.getAvailabilityCount() > 0) {
-                                                    filteredTrains.add(train);
-                                                }
-                                            })
-                                    );
-                                }
-                            }
-                        })
-                )
+                gidisTarih, gidisTarihSon,
+                koltukTipi
         );
 
-        // Seferleri DTO formatına çevir
         List<SeferDTO> seferListesi = filteredTrains.stream().map(train -> new SeferDTO(
-                train.getName(),
-                train.getTrainSegments().get(0).getDepartureTime(),
+                train.name(),
+                train.trainSegments().get(0).departureTime(),
                 binisIstasyonu,
                 inisIstasyonu,
                 koltukTipi,
-                train.getAvailableFareInfo().get(0).getCabinClasses().get(0).getAvailabilityCount()
+                train.availableFareInfo().get(0).cabinClasses().get(0).availabilityCount()
         )).collect(Collectors.toList());
 
-        // Eğer e-posta girildiyse ve boş koltuk varsa e-posta gönder
         if (email != null && !email.isEmpty() && !seferListesi.isEmpty()) {
             String emailContent = generateEmailContent(seferListesi);
             emailService.sendEmail(email, "Tren Seferleri Bilgisi", emailContent);
         }
 
-        // Sayfalama işlemi için Pageable nesnesi oluştur
         Pageable pageable = PageRequest.of(page, size);
         int start = Math.min((int) pageable.getOffset(), seferListesi.size());
         int end = Math.min((start + pageable.getPageSize()), seferListesi.size());
-
         List<SeferDTO> pagedList = seferListesi.subList(start, end);
 
         return new PageImpl<>(pagedList, pageable, seferListesi.size());
+    }
+
+    private List<Train> collectTrainsForDateRange(
+            int binisIstasyonId, String binisIstasyonu,
+            int inisIstasyonId, String inisIstasyonu,
+            LocalDateTime startDate, LocalDateTime endDate,
+            String koltukTipi) {
+
+        List<Train> allTrains = new ArrayList<>();
+        LocalDateTime currentDate = startDate;
+
+        while (!currentDate.isAfter(endDate)) {
+            RequestDTO requestDTO = new RequestDTO(
+                    "DOMESTIC",
+                    false,
+                    List.of(new RequestDTO.PassengerTypeCount(0, 1)),
+                    List.of(new RequestDTO.SearchRoutes(
+                            binisIstasyonId, binisIstasyonu,
+                            inisIstasyonId, inisIstasyonu,
+                            currentDate
+                    ))
+            );
+
+            ResponseDTO response = restClient.post()
+                    .uri(API_URL)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + BEARER_TOKEN)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                    .header("Unit-Id", "3895")
+                    .body(requestDTO)
+                    .retrieve()
+                    .body(ResponseDTO.class);
+
+            if (response != null && response.trainLegs() != null) {
+                for (var leg : response.trainLegs()) {
+                    for (var availability : leg.trainAvailabilities()) {
+                        for (var train : availability.trains()) {
+                            for (var cabinClass : train.availableFareInfo().get(0).cabinClasses()) {
+                                if (cabinClass.cabinClass().name().equalsIgnoreCase(koltukTipi)
+                                        && cabinClass.availabilityCount() > 0) {
+                                    allTrains.add(train);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            currentDate = currentDate.plusDays(1);
+        }
+
+        return allTrains;
     }
 
     private String generateEmailContent(List<SeferDTO> seferListesi) {
