@@ -122,18 +122,18 @@ public class TicketService {
 
     private String generateEmailContent(List<SeferDTO> seferListesi) {
         StringBuilder sb = new StringBuilder();
-        sb.append("<h2>Tren Seferleri</h2>");
-        sb.append("<ul>");
+        sb.append("Tren Seferleri Listesi\n\n");
+
         for (SeferDTO sefer : seferListesi) {
-            sb.append("<li><b>Tren Adı:</b> ").append(sefer.getTrenAdi()).append("<br>")
-              .append("<b>Kalkış Tarihi:</b> ").append(sefer.getKalkisTarihi()).append("<br>")
-              .append("<b>Biniş İstasyonu:</b> ").append(sefer.getBinisIstasyonu()).append("<br>")
-              .append("<b>Varış İstasyonu:</b> ").append(sefer.getVarisIstasyonu()).append("<br>")
-              .append("<b>Koltuk Tipi:</b> ").append(sefer.getKoltukTipi()).append("<br>")
-              .append("<b>Boş Koltuk Sayısı:</b> ").append(sefer.getBosKoltukSayisi()).append("<br><br>")
-              .append("</li>");
+            sb.append("Tren Adı: ").append(sefer.getTrenAdi()).append("\n")
+              .append("Kalkış Tarihi: ").append(sefer.getKalkisTarihi()).append("\n")
+              .append("Biniş İstasyonu: ").append(sefer.getBinisIstasyonu()).append("\n")
+              .append("Varış İstasyonu: ").append(sefer.getVarisIstasyonu()).append("\n")
+              .append("Koltuk Tipi: ").append(sefer.getKoltukTipi()).append("\n")
+              .append("✅ Boş Koltuk Sayısı: ").append(sefer.getBosKoltukSayisi()).append("\n")
+              .append("--------------------------------------------------\n\n");
         }
-        sb.append("</ul>");
+
         return sb.toString();
     }
 }
