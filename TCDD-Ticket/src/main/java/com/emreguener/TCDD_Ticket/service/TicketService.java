@@ -45,14 +45,24 @@ public class TicketService {
                 koltukTipi
         );
 
-        List<SeferDTO> seferListesi = filteredTrains.stream().map(train -> new SeferDTO(
-                train.name(),
-                train.trainSegments().get(0).departureTime(),
-                binisIstasyonu,
-                inisIstasyonu,
-                koltukTipi,
-                train.availableFareInfo().get(0).cabinClasses().get(0).availabilityCount()
-        )).collect(Collectors.toList());
+        List<SeferDTO> seferListesi = filteredTrains.stream().map(train -> {
+            // Kullanıcının seçtiği koltuk tipi için boş koltuk sayısını bul
+            int bosKoltukSayisi = train.availableFareInfo().stream()
+                    .flatMap(fare -> fare.cabinClasses().stream())
+                    .filter(cabin -> cabin.cabinClass().name().equalsIgnoreCase(koltukTipi))
+                    .mapToInt(cabin -> cabin.availabilityCount())
+                    .findFirst()
+                    .orElse(0);
+
+            return new SeferDTO(
+                    train.name(),
+                    train.trainSegments().get(0).departureTime(),
+                    binisIstasyonu,
+                    inisIstasyonu,
+                    koltukTipi,
+                    bosKoltukSayisi
+            );
+        }).collect(Collectors.toList());
 
         if (email != null && !email.isEmpty() && !seferListesi.isEmpty()) {
             String emailContent = generateEmailContent(seferListesi);
@@ -102,12 +112,12 @@ public class TicketService {
                 for (var leg : response.trainLegs()) {
                     for (var availability : leg.trainAvailabilities()) {
                         for (var train : availability.trains()) {
-                            for (var cabinClass : train.availableFareInfo().get(0).cabinClasses()) {
-                                if (cabinClass.cabinClass().name().equalsIgnoreCase(koltukTipi)
-                                        && cabinClass.availabilityCount() > 0) {
-                                    allTrains.add(train);
-                                    break;
-                                }
+                            boolean hasMatchingCabin = train.availableFareInfo().stream()
+                                    .flatMap(fare -> fare.cabinClasses().stream())
+                                    .anyMatch(cabin -> cabin.cabinClass().name().equalsIgnoreCase(koltukTipi)
+                                            && cabin.availabilityCount() > 0);
+                            if (hasMatchingCabin) {
+                                allTrains.add(train);
                             }
                         }
                     }
@@ -122,18 +132,15 @@ public class TicketService {
 
     private String generateEmailContent(List<SeferDTO> seferListesi) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Tren Seferleri Listesi\n\n");
-
+        sb.append("Tren Seferleri:\n\n");
         for (SeferDTO sefer : seferListesi) {
             sb.append("Tren Adı: ").append(sefer.getTrenAdi()).append("\n")
               .append("Kalkış Tarihi: ").append(sefer.getKalkisTarihi()).append("\n")
               .append("Biniş İstasyonu: ").append(sefer.getBinisIstasyonu()).append("\n")
               .append("Varış İstasyonu: ").append(sefer.getVarisIstasyonu()).append("\n")
               .append("Koltuk Tipi: ").append(sefer.getKoltukTipi()).append("\n")
-              .append("✅ Boş Koltuk Sayısı: ").append(sefer.getBosKoltukSayisi()).append("\n")
-              .append("--------------------------------------------------\n\n");
+              .append("✅ Boş Koltuk Sayısı: ").append(sefer.getBosKoltukSayisi()).append("\n\n");
         }
-
         return sb.toString();
     }
-}
+} 
