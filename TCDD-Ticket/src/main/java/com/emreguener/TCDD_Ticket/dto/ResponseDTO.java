@@ -18,16 +18,28 @@ public record ResponseDTO(List<TrainLeg> trainLegs) {
             int departureStationId,
             int arrivalStationId,
             List<AvailableFareInfo> availableFareInfo,
-            List<TrainSegment> trainSegments
+            List<TrainSegment> trainSegments, // Kalıyor
+            List<Segment> segments            // Yeni eklendi – sadece zaman vs.
     ) {}
 
     public record AvailableFareInfo(List<CabinClass> cabinClasses) {}
 
+    // ↪️ trainSegments: ID’li yapılar
     public record TrainSegment(
+            int id,
             int departureStationId,
             int arrivalStationId,
             String departureTime,
             String arrivalTime
+    ) {}
+
+    // Yeni: Zamanlı segment yapısı
+    public record Segment(
+            int id,
+            int departureStationId,
+            int arrivalStationId,
+            long departureTime,  // epoch millis
+            long arrivalTime
     ) {}
 
     public record CabinClass(CabinClassDetail cabinClass, int availabilityCount) {}
